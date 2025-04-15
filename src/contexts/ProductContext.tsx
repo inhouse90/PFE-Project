@@ -29,7 +29,7 @@ interface ProductContextType {
 const MOCK_PRODUCTS: Product[] = [
   {
     id: '1',
-    name: 'Laptop Pro',
+    name: 'Laptop',
     description: 'High performance laptop for professionals',
     price: 1299.99,
     category: 'Electronics',
