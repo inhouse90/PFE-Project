@@ -1,4 +1,3 @@
-
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
@@ -204,18 +203,15 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 });
 
-// Handle image uploads (in a real app, you'd use something like multer and store in a cloud service)
-// This is a placeholder endpoint
+// Placeholder for image upload
 app.post('/api/upload', (req, res) => {
-  // This would handle file uploads in a real implementation
-  // For now, return a mock URL
   res.json({ 
     imageUrl: `https://images.unsplash.com/photo-${Date.now()}?auto=format&fit=crop&w=500&q=60` 
   });
 });
 
-// Serve React app for any request not matching an API route
-app.get('*', (req, res) => {
+// Serve React frontend (in production)
+app.get(/^\/(?!api).*/, (req, res) => {
   if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   } else {
