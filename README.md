@@ -1,56 +1,34 @@
-# Welcome to your Lovable project
+# Admin Dashboard with MongoDB Atlas Integration
 
-## Project info
+A clean, modern admin dashboard with product management capabilities and authentication.
 
-**URL**: https://lovable.dev/projects/b31749a2-2cfe-4206-8c67-b9afbf656ade
+## Features
 
-## How can I edit this code?
+- User authentication (sign up & sign in)
+- Dashboard overview with key metrics
+- Product management (create, read, update, delete)
+- MongoDB Atlas integration for data storage
+- Responsive design for all devices
 
-There are several ways of editing your application.
+## MongoDB Atlas Setup
 
-**Use Lovable**
+To connect this dashboard to your MongoDB Atlas database:
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/b31749a2-2cfe-4206-8c67-b9afbf656ade) and start prompting.
+1. Create a MongoDB Atlas account at https://www.mongodb.com/cloud/atlas
+2. Create a new cluster
+3. In the Security section, create a database user with read/write permissions
+4. In the Network Access section, add your IP address or allow access from anywhere
+5. Get your connection string from the Connect section
+6. Create a .env file in your project root with:
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+VITE_MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/<dbname>?retryWrites=true&w=majority
+VITE_MONGODB_DB=admin_dashboard
 ```
 
-**Edit a file directly in GitHub**
+Replace `<username>`, `<password>`, `<cluster>`, and `<dbname>` with your actual values.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
+## Tech Stack
 
 This project is built with:
 
@@ -59,15 +37,37 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+- MongoDB Atlas (for backend storage)
 
-## How can I deploy this project?
+## Getting Started
 
-Simply open [Lovable](https://lovable.dev/projects/b31749a2-2cfe-4206-8c67-b9afbf656ade) and click on Share -> Publish.
+```sh
+# Step 1: Clone the repository
+git clone <YOUR_GIT_URL>
 
-## Can I connect a custom domain to my Lovable project?
+# Step 2: Navigate to the project directory
+cd <YOUR_PROJECT_NAME>
 
-Yes, you can!
+# Step 3: Install the necessary dependencies
+npm i
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+# Step 4: Create a .env file with your MongoDB connection details
+echo "VITE_MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/<dbname>" > .env
+echo "VITE_MONGODB_DB=admin_dashboard" >> .env
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+# Step 5: Start the development server
+npm run dev
+```
+
+## Demo Account
+
+For testing purposes, you can use the following credentials:
+- Email: admin@example.com
+- Password: admin123
+
+## Project Structure
+
+- `src/pages/` - All page components
+- `src/components/` - Reusable UI components
+- `src/contexts/` - React context providers
+- `src/lib/` - Utility functions and configuration
