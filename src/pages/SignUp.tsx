@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, UserPlus } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -33,7 +34,11 @@ const SignUp = () => {
     try {
       const success = await register(name, email, password);
       if (success) {
-        navigate("/dashboard");
+        toast({
+          title: "Account created successfully",
+          description: "Please sign in with your new credentials",
+        });
+        navigate("/signin");
       } else {
         setError("Registration failed. Email may already be in use.");
       }

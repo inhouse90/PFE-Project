@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useProducts, Product } from "@/contexts/ProductContext";
 import { Button } from "@/components/ui/button";
@@ -20,12 +20,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { 
   Package, Plus, MoreHorizontal, Pencil, Trash2, 
-  Search, Filter, ArrowDown, ArrowUp
+  Search, Filter, ArrowDown, ArrowUp, Image, Upload
 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 
 const Products = () => {
-  const { products, createProduct, updateProduct, deleteProduct } = useProducts();
+  const { products, createProduct, updateProduct, deleteProduct, uploadImage } = useProducts();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -39,6 +39,9 @@ const Products = () => {
     stock: 0,
     imageUrl: ""
   });
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Product;
     direction: 'asc' | 'desc';
@@ -76,8 +79,68 @@ const Products = () => {
     setSortConfig({ key, direction });
   };
 
+  // Handle image upload for new product
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const imageUrl = await uploadImage(file);
+      setNewProduct({ ...newProduct, imageUrl });
+      toast({
+        title: "Image uploaded",
+        description: "Image has been uploaded successfully."
+      });
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload image. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Handle image upload for editing product
+  const handleEditImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!currentProduct) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const imageUrl = await uploadImage(file);
+      setCurrentProduct({ ...currentProduct, imageUrl });
+      toast({
+        title: "Image updated",
+        description: "Product image has been updated."
+      });
+    } catch (error) {
+      console.error("Error updating image:", error);
+      toast({
+        title: "Update failed",
+        description: "Failed to update image. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // Handle create product
   const handleCreateProduct = async () => {
+    if (!newProduct.name || !newProduct.category) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       await createProduct(newProduct);
       setNewProduct({
@@ -170,13 +233,14 @@ const Products = () => {
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="name" className="text-right">
-                    Name
+                    Name*
                   </Label>
                   <Input
                     id="name"
                     className="col-span-3"
                     value={newProduct.name}
                     onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                    required
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -204,13 +268,14 @@ const Products = () => {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="category" className="text-right">
-                    Category
+                    Category*
                   </Label>
                   <Input
                     id="category"
                     className="col-span-3"
                     value={newProduct.category}
                     onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                    required
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -225,16 +290,57 @@ const Products = () => {
                     onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) })}
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="imageUrl" className="text-right">
-                    Image URL
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label htmlFor="image" className="text-right mt-2">
+                    Product Image
                   </Label>
-                  <Input
-                    id="imageUrl"
-                    className="col-span-3"
-                    value={newProduct.imageUrl}
-                    onChange={(e) => setNewProduct({ ...newProduct, imageUrl: e.target.value })}
-                  />
+                  <div className="col-span-3">
+                    <div className="flex flex-col gap-2">
+                      <input
+                        type="file"
+                        id="image"
+                        accept="image/*"
+                        className="hidden"
+                        ref={fileInputRef}
+                        onChange={handleImageUpload}
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => fileInputRef.current?.click()} 
+                          disabled={isUploading}
+                          className="flex items-center gap-2"
+                        >
+                          {isUploading ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span>Uploading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4" />
+                              <span>Upload Image</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      {newProduct.imageUrl && (
+                        <div className="mt-2">
+                          <div className="border rounded-md overflow-hidden w-full max-w-[200px] h-[150px]">
+                            <img 
+                              src={newProduct.imageUrl} 
+                              alt="Product preview" 
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -318,9 +424,15 @@ const Products = () => {
                     <TableCell className="font-medium">{product.id.slice(0, 5)}...</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-md bg-gray-100 flex items-center justify-center">
-                          <Package className="h-4 w-4 text-gray-400" />
-                        </div>
+                        {product.imageUrl ? (
+                          <div className="w-10 h-10 rounded-md overflow-hidden">
+                            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center">
+                            <Package className="h-4 w-4 text-gray-400" />
+                          </div>
+                        )}
                         <span>{product.name}</span>
                       </div>
                     </TableCell>
@@ -438,6 +550,58 @@ const Products = () => {
                   value={currentProduct.stock}
                   onChange={(e) => setCurrentProduct({ ...currentProduct, stock: parseInt(e.target.value) })}
                 />
+              </div>
+              <div className="grid grid-cols-4 items-start gap-4">
+                <Label htmlFor="edit-image" className="text-right mt-2">
+                  Product Image
+                </Label>
+                <div className="col-span-3">
+                  <div className="flex flex-col gap-2">
+                    <input
+                      type="file"
+                      id="edit-image"
+                      accept="image/*"
+                      className="hidden"
+                      ref={editFileInputRef}
+                      onChange={handleEditImageUpload}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => editFileInputRef.current?.click()} 
+                        disabled={isUploading}
+                        className="flex items-center gap-2"
+                      >
+                        {isUploading ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Uploading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4" />
+                            <span>Change Image</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    {currentProduct.imageUrl && (
+                      <div className="mt-2">
+                        <div className="border rounded-md overflow-hidden w-full max-w-[200px] h-[150px]">
+                          <img 
+                            src={currentProduct.imageUrl} 
+                            alt="Product preview" 
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}

@@ -9,7 +9,7 @@ export interface Product {
   price: number;
   category: string;
   stock: number;
-  imageUrl?: string;
+  imageUrl: string;
   createdAt: string;
 }
 
@@ -22,6 +22,7 @@ interface ProductContextType {
   createProduct: (product: Omit<Product, 'id' | 'createdAt'>) => Promise<Product | null>;
   updateProduct: (id: string, updates: Partial<Omit<Product, 'id'>>) => Promise<boolean>;
   deleteProduct: (id: string) => Promise<boolean>;
+  uploadImage: (file: File) => Promise<string>;
 }
 
 // Mock data for demo purposes
@@ -33,7 +34,7 @@ const MOCK_PRODUCTS: Product[] = [
     price: 1299.99,
     category: 'Electronics',
     stock: 45,
-    imageUrl: 'https://placehold.co/600x400',
+    imageUrl: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?q=80&w=1470&auto=format&fit=crop',
     createdAt: new Date().toISOString()
   },
   {
@@ -43,7 +44,7 @@ const MOCK_PRODUCTS: Product[] = [
     price: 899.99,
     category: 'Electronics',
     stock: 120,
-    imageUrl: 'https://placehold.co/600x400',
+    imageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=1160&auto=format&fit=crop',
     createdAt: new Date().toISOString()
   },
   {
@@ -53,7 +54,7 @@ const MOCK_PRODUCTS: Product[] = [
     price: 249.99,
     category: 'Furniture',
     stock: 30,
-    imageUrl: 'https://placehold.co/600x400',
+    imageUrl: 'https://images.unsplash.com/photo-1505843490701-5be5d0b19889?q=80&w=1160&auto=format&fit=crop',
     createdAt: new Date().toISOString()
   }
 ];
@@ -91,6 +92,35 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
 
   const getProduct = (id: string) => {
     return products.find(p => p.id === id);
+  };
+
+  // Simulate image upload
+  const uploadImage = async (file: File): Promise<string> => {
+    // In a real app, we would upload to a storage service
+    // For demo, we'll just use a placeholder image or file URL
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate upload delay
+    
+    try {
+      // In a real app with MongoDB/storage service, this would be a server upload
+      // For now, return a placeholder image URL
+      if (file) {
+        const fileType = file.type.split('/')[0];
+        if (fileType === 'image') {
+          // Return a random unsplash image for demo purposes
+          const imageOptions = [
+            'https://images.unsplash.com/photo-1505843490701-5be5d0b19889?q=80&w=1160&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=1964&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1470&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=1399&auto=format&fit=crop'
+          ];
+          return imageOptions[Math.floor(Math.random() * imageOptions.length)];
+        }
+      }
+      return 'https://images.unsplash.com/photo-1580041065738-e72023775cdc?q=80&w=1470&auto=format&fit=crop'; // Default placeholder
+    } catch (err) {
+      console.error('Error uploading image:', err);
+      throw new Error('Failed to upload image');
+    }
   };
 
   const createProduct = async (productData: Omit<Product, 'id' | 'createdAt'>): Promise<Product | null> => {
@@ -155,7 +185,8 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
         getProduct,
         createProduct,
         updateProduct,
-        deleteProduct
+        deleteProduct,
+        uploadImage
       }}
     >
       {children}
