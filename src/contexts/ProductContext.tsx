@@ -1,9 +1,9 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 
 // Product type definition
 export interface Product {
-  id: string;
+  _id: string;
   name: string;
   description: string;
   price: number;
@@ -19,158 +19,214 @@ interface ProductContextType {
   error: string | null;
   fetchProducts: () => Promise<void>;
   getProduct: (id: string) => Product | undefined;
-  createProduct: (product: Omit<Product, 'id' | 'createdAt'>) => Promise<Product | null>;
-  updateProduct: (id: string, updates: Partial<Omit<Product, 'id'>>) => Promise<boolean>;
+  createProduct: (product: Omit<Product, '_id' | 'createdAt'>) => Promise<Product | null>;
+  updateProduct: (id: string, updates: Partial<Omit<Product, '_id'>>) => Promise<boolean>;
   deleteProduct: (id: string) => Promise<boolean>;
   uploadImage: (file: File) => Promise<string>;
 }
-
-// Mock data for demo purposes
-const MOCK_PRODUCTS: Product[] = [
-  {
-    id: '1',
-    name: 'Laptop',
-    description: 'High performance laptop for professionals',
-    price: 1299.99,
-    category: 'Electronics',
-    stock: 45,
-    imageUrl: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?q=80&w=1470&auto=format&fit=crop',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: '2',
-    name: 'Smartphone X',
-    description: 'Latest smartphone with advanced features',
-    price: 899.99,
-    category: 'Electronics',
-    stock: 120,
-    imageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=1160&auto=format&fit=crop',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: '3',
-    name: 'Desk Chair',
-    description: 'Ergonomic office chair for comfort',
-    price: 249.99,
-    category: 'Furniture',
-    stock: 30,
-    imageUrl: 'https://images.unsplash.com/photo-1505843490701-5be5d0b19889?q=80&w=1160&auto=format&fit=crop',
-    createdAt: new Date().toISOString()
-  }
-];
 
 // Create context
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
 export function ProductProvider({ children }: { children: React.ReactNode }) {
+  const { token } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch products on mount
+  // Fetch products on mount and when token changes
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    if (token) {
+      fetchProducts();
+    } else {
+      setIsLoading(false);
+      setError('No authentication token available. Please log in.');
+    }
+  }, [token]);
 
   const fetchProducts = async () => {
+    if (!token) {
+      setError('Cannot fetch products: No authentication token available.');
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // In a real app, we would fetch from MongoDB here
-      setProducts(MOCK_PRODUCTS);
-    } catch (err) {
-      setError('Failed to fetch products');
-      console.error(err);
+      const response = await fetch('http://localhost:5000/api/products', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Unauthorized: Invalid or expired token. Please log in again.');
+        } else if (response.status === 403) {
+          throw new Error('Forbidden: You do not have permission to access this resource.');
+        } else {
+          throw new Error(`Failed to fetch products: ${response.statusText}`);
+        }
+      }
+
+      const data = await response.json();
+      setProducts(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch products');
+      console.error('Error fetching products:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
   const getProduct = (id: string) => {
-    return products.find(p => p.id === id);
+    return products.find((p) => p._id === id);
   };
 
-  // Simulate image upload
   const uploadImage = async (file: File): Promise<string> => {
-    // In a real app, we would upload to a storage service
-    // For demo, we'll just use a placeholder image or file URL
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate upload delay
-    
+    if (!token) {
+      throw new Error('Cannot upload image: No authentication token available.');
+    }
+
+    const formData = new FormData();
+    formData.append('image', file);
+
     try {
-      // In a real app with MongoDB/storage service, this would be a server upload
-      // For now, return a placeholder image URL
-      if (file) {
-        const fileType = file.type.split('/')[0];
-        if (fileType === 'image') {
-          // Return a random unsplash image for demo purposes
-          const imageOptions = [
-            'https://images.unsplash.com/photo-1505843490701-5be5d0b19889?q=80&w=1160&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=1964&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1470&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=1399&auto=format&fit=crop'
-          ];
-          return imageOptions[Math.floor(Math.random() * imageOptions.length)];
+      const response = await fetch('http://localhost:5000/api/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Unauthorized: Invalid or expired token. Please log in again.');
+        } else if (response.status === 403) {
+          throw new Error('Forbidden: You do not have permission to access this resource.');
+        } else {
+          throw new Error(`Failed to upload image: ${response.statusText}`);
         }
       }
-      return 'https://images.unsplash.com/photo-1580041065738-e72023775cdc?q=80&w=1470&auto=format&fit=crop'; // Default placeholder
-    } catch (err) {
+
+      const data = await response.json();
+      return data.imageUrl;
+    } catch (err: any) {
       console.error('Error uploading image:', err);
-      throw new Error('Failed to upload image');
+      throw new Error(err.message || 'Failed to upload image');
     }
   };
 
-  const createProduct = async (productData: Omit<Product, 'id' | 'createdAt'>): Promise<Product | null> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
+  const createProduct = async (productData: Omit<Product, '_id' | 'createdAt'>): Promise<Product | null> => {
+    if (!token) {
+      setError('Cannot create product: No authentication token available.');
+      return null;
+    }
+
     try {
-      // In a real app, we would save to MongoDB
-      const newProduct: Product = {
-        ...productData,
-        id: String(Date.now()),
-        createdAt: new Date().toISOString()
-      };
-      
-      setProducts(prev => [...prev, newProduct]);
+      const response = await fetch('http://localhost:5000/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(productData),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Unauthorized: Invalid or expired token. Please log in again.');
+        } else if (response.status === 403) {
+          throw new Error('Forbidden: You do not have permission to access this resource.');
+        } else {
+          throw new Error(`Failed to create product: ${response.statusText}`);
+        }
+      }
+
+      const newProduct = await response.json();
+      // Refresh the product list from the backend to ensure consistency
+      await fetchProducts();
       return newProduct;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating product:', err);
+      setError(err.message || 'Failed to create product');
       return null;
     }
   };
 
-  const updateProduct = async (id: string, updates: Partial<Omit<Product, 'id'>>): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
+  const updateProduct = async (id: string, updates: Partial<Omit<Product, '_id'>>): Promise<boolean> => {
+    if (!token) {
+      setError('Cannot update product: No authentication token available.');
+      return false;
+    }
+
     try {
-      // In a real app, we would update in MongoDB
-      setProducts(prev => 
-        prev.map(product => 
-          product.id === id ? { ...product, ...updates } : product
-        )
-      );
+      const response = await fetch(`http://localhost:5000/api/products/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Unauthorized: Invalid or expired token. Please log in again.');
+        } else if (response.status === 403) {
+          throw new Error('Forbidden: You do not have permission to access this resource.');
+        } else if (response.status === 404) {
+          throw new Error('Product not found.');
+        } else {
+          throw new Error(`Failed to update product: ${response.statusText}`);
+        }
+      }
+
+      // Refresh the product list from the backend
+      await fetchProducts();
       return true;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating product:', err);
+      setError(err.message || 'Failed to update product');
       return false;
     }
   };
 
   const deleteProduct = async (id: string): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
+    if (!token) {
+      setError('Cannot delete product: No authentication token available.');
+      return false;
+    }
+
     try {
-      // In a real app, we would delete from MongoDB
-      setProducts(prev => prev.filter(product => product.id !== id));
+      const response = await fetch(`http://localhost:5000/api/products/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Unauthorized: Invalid or expired token. Please log in again.');
+        } else if (response.status === 403) {
+          throw new Error('Forbidden: You do not have permission to access this resource.');
+        } else if (response.status === 404) {
+          throw new Error('Product not found.');
+        } else {
+          throw new Error(`Failed to delete product: ${response.statusText}`);
+        }
+      }
+
+      // Refresh the product list from the backend
+      await fetchProducts();
       return true;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting product:', err);
+      setError(err.message || 'Failed to delete product');
       return false;
     }
   };
@@ -186,7 +242,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
         createProduct,
         updateProduct,
         deleteProduct,
-        uploadImage
+        uploadImage,
       }}
     >
       {children}
