@@ -89,11 +89,11 @@ const Products = () => {
         title: 'Image uploaded',
         description: 'Image has been uploaded successfully.',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading image:', error);
       toast({
         title: 'Upload failed',
-        description: 'Failed to upload image. Please try again.',
+        description: error.message || 'Failed to upload image. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -115,16 +115,37 @@ const Products = () => {
         title: 'Image updated',
         description: 'Product image has been updated.',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating image:', error);
       toast({
         title: 'Update failed',
-        description: 'Failed to update image. Please try again.',
+        description: error.message || 'Failed to update image. Please try again.',
         variant: 'destructive',
       });
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // Validate price and stock
+  const validateProductFields = (product: { price: number; stock: number }) => {
+    if (product.price < 0) {
+      toast({
+        title: 'Invalid Price',
+        description: 'Price must be a positive number.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    if (product.stock < 0) {
+      toast({
+        title: 'Invalid Stock',
+        description: 'Stock must be a positive number.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    return true;
   };
 
   // Handle create product
@@ -137,6 +158,8 @@ const Products = () => {
       });
       return;
     }
+
+    if (!validateProductFields(newProduct)) return;
 
     try {
       const createdProduct = await createProduct(newProduct);
@@ -152,18 +175,16 @@ const Products = () => {
         setIsAddDialogOpen(false);
         toast({
           title: 'Product created',
-          description: 'The product has been created successfully.',
+          description: 'The product has been created and synced with Shopify successfully.',
         });
-        // Refresh the product list after creating a new product
-        await fetchProducts();
       } else {
         throw new Error('Failed to create product');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating product:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create product.',
+        description: error.message.includes('Shopify') ? error.message : 'Failed to create product. Please try again.',
         variant: 'destructive',
       });
     }
@@ -173,24 +194,33 @@ const Products = () => {
   const handleEditProduct = async () => {
     if (!currentProduct) return;
 
+    if (!currentProduct.name || !currentProduct.category) {
+      toast({
+        title: 'Missing information',
+        description: 'Please fill in all required fields.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!validateProductFields(currentProduct)) return;
+
     try {
       const success = await updateProduct(currentProduct._id, currentProduct);
       if (success) {
         setIsEditDialogOpen(false);
         toast({
           title: 'Product updated',
-          description: 'The product has been updated successfully.',
+          description: 'The product has been updated and synced with Shopify successfully.',
         });
-        // Refresh the product list after updating a product
-        await fetchProducts();
       } else {
         throw new Error('Failed to update product');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating product:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update product.',
+        description: error.message.includes('Shopify') ? error.message : 'Failed to update product. Please try again.',
         variant: 'destructive',
       });
     }
@@ -206,18 +236,16 @@ const Products = () => {
         setIsDeleteDialogOpen(false);
         toast({
           title: 'Product deleted',
-          description: 'The product has been deleted successfully.',
+          description: 'The product has been deleted and removed from Shopify successfully.',
         });
-        // Refresh the product list after deleting a product
-        await fetchProducts();
       } else {
         throw new Error('Failed to delete product');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting product:', error);
       toast({
         title: 'Error',
-        description: 'Failed to delete product.',
+        description: error.message.includes('Shopify') ? error.message : 'Failed to delete product. Please try again.',
         variant: 'destructive',
       });
     }
@@ -229,12 +257,12 @@ const Products = () => {
       await fetchProducts();
       toast({
         title: 'Refreshed',
-        description: 'Product list has been refreshed.',
+        description: 'Product list has been refreshed and synced with Shopify.',
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Refresh failed',
-        description: 'Failed to refresh product list.',
+        description: error.message.includes('Shopify') ? error.message : 'Failed to refresh product list.',
         variant: 'destructive',
       });
     }
@@ -298,7 +326,12 @@ const Products = () => {
                       type="number"
                       className="col-span-3"
                       value={newProduct.price}
-                      onChange={(e) => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) })}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        setNewProduct({ ...newProduct, price: isNaN(value) ? 0 : value });
+                      }}
+                      min={0}
+                      step="0.01"
                     />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -322,7 +355,12 @@ const Products = () => {
                       type="number"
                       className="col-span-3"
                       value={newProduct.stock}
-                      onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) })}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        setNewProduct({ ...newProduct, stock: isNaN(value) ? 0 : value });
+                      }}
+                      min={0}
+                      step="1"
                     />
                   </div>
                   <div className="grid grid-cols-4 items-start gap-4">
@@ -589,7 +627,12 @@ const Products = () => {
                   type="number"
                   className="col-span-3"
                   value={currentProduct.price}
-                  onChange={(e) => setCurrentProduct({ ...currentProduct, price: parseFloat(e.target.value) })}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value);
+                    setCurrentProduct({ ...currentProduct, price: isNaN(value) ? 0 : value });
+                  }}
+                  min={0}
+                  step="0.01"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -612,7 +655,12 @@ const Products = () => {
                   type="number"
                   className="col-span-3"
                   value={currentProduct.stock}
-                  onChange={(e) => setCurrentProduct({ ...currentProduct, stock: parseInt(e.target.value) })}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    setCurrentProduct({ ...currentProduct, stock: isNaN(value) ? 0 : value });
+                  }}
+                  min={0}
+                  step="1"
                 />
               </div>
               <div className="grid grid-cols-4 items-start gap-4">
@@ -697,7 +745,7 @@ const Products = () => {
           <DialogHeader>
             <DialogTitle>Delete Product</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this product? This action cannot be undone.
+              Are you sure you want to delete this product? This action cannot be undone and will remove the product from Shopify.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

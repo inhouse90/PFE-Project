@@ -6,12 +6,15 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 require('dotenv').config();
 
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key'; // Store this in .env in production
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
+const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN ;
+const SHOPIFY_STORE_NAME = process.env.SHOPIFY_STORE_NAME || 'jaaagd-tz';
 
 // Middleware
 app.use(cors());
@@ -19,7 +22,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static files for uploaded images
-const uploadDir = path.join(__dirname, 'uploads');
+const uploadDir = path.join(__dirname, 'Uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
@@ -92,7 +95,7 @@ const storage = multer.diskStorage({
     cb(null, 'uploads/');
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random * 1e9);
     cb(null, uniqueSuffix + path.extname(file.originalname));
   },
 });
@@ -112,6 +115,201 @@ const upload = multer({
   },
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
 });
+
+// Shopify API Helper Functions
+const shopifyApiBaseUrl = `https://${SHOPIFY_STORE_NAME}.myshopify.com/admin/api/2024-10`;
+
+// Log the base URL to debug
+console.log('Shopify API Base URL:', shopifyApiBaseUrl);
+
+// Validate the URL format
+try {
+  new URL(shopifyApiBaseUrl);
+} catch (err) {
+  console.error('Invalid Shopify API Base URL:', shopifyApiBaseUrl);
+  throw new Error('Invalid Shopify API Base URL configuration');
+}
+
+const shopifyApi = axios.create({
+  baseURL: shopifyApiBaseUrl,
+  headers: {
+    'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
+    'Content-Type': 'application/json',
+  },
+});
+
+// Sync product with Shopify
+const syncProductToShopify = async (product) => {
+  try {
+    // Validate product data
+    if (!product.name) {
+      throw new Error('Product name is required');
+    }
+    if (!product.price || product.price < 0) {
+      throw new Error('Valid product price is required');
+    }
+
+    const shopifyProduct = {
+      product: {
+        title: product.name,
+        body_html: product.description || '',
+        vendor: 'Your Vendor Name',
+        product_type: product.category || 'Uncategorized',
+        images: product.imageUrl ? [{ src: product.imageUrl }] : [],
+        variants: [
+          {
+            price: product.price.toFixed(2),
+            inventory_quantity: product.stock || 0,
+            inventory_management: 'shopify',
+          },
+        ],
+        status: 'active', // Ensure product is published
+      },
+    };
+
+    console.log('Syncing product to Shopify:', JSON.stringify(shopifyProduct, null, 2));
+
+    const response = await shopifyApi.post('/products.json', shopifyProduct);
+    const shopifyProductId = response.data.product.id;
+
+    console.log(`Product created in Shopify with ID: ${shopifyProductId}`);
+
+    // Update MongoDB with Shopify product ID
+    await db.collection('products').updateOne(
+      { _id: new ObjectId(product._id) },
+      { $set: { shopifyProductId: shopifyProductId.toString() } }
+    );
+
+    return shopifyProductId;
+  } catch (err) {
+    console.error('Error syncing product to Shopify:', {
+      message: err.message,
+      response: err.response?.data,
+      status: err.response?.status,
+    });
+    throw new Error(`Failed to sync product with Shopify: ${err.message}`);
+  }
+};
+
+// Update product on Shopify
+const updateProductOnShopify = async (shopifyProductId, product) => {
+  try {
+    // Validate product data
+    if (!product.name) {
+      throw new Error('Product name is required');
+    }
+    if (product.price !== undefined && product.price < 0) {
+      throw new Error('Valid product price is required');
+    }
+
+    const shopifyProduct = {
+      product: {
+        id: shopifyProductId,
+        title: product.name,
+        body_html: product.description || '',
+        product_type: product.category || 'Uncategorized',
+        variants: [
+          {
+            price: product.price.toFixed(2),
+            inventory_quantity: product.stock || 0,
+          },
+        ],
+      },
+    };
+
+    if (product.imageUrl) {
+      shopifyProduct.product.images = [{ src: product.imageUrl }];
+    }
+
+    console.log(`Updating product ${shopifyProductId} in Shopify:`, JSON.stringify(shopifyProduct, null, 2));
+
+    const response = await shopifyApi.put(`/products/${shopifyProductId}.json`, shopifyProduct);
+    console.log(`Product ${shopifyProductId} updated in Shopify`);
+
+    return response.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      console.warn(`Product with ID ${shopifyProductId} not found in Shopify, attempting to create new product`);
+      return await syncProductToShopify({ ...product, _id: product._id });
+    }
+    console.error('Error updating product on Shopify:', {
+      message: err.message,
+      response: err.response?.data,
+      status: err.response?.status,
+    });
+    throw new Error(`Failed to update product on Shopify: ${err.message}`);
+  }
+};
+
+// Delete product from Shopify
+const deleteProductFromShopify = async (shopifyProductId) => {
+  try {
+    await shopifyApi.delete(`/products/${shopifyProductId}.json`);
+    console.log(`Product ${shopifyProductId} deleted from Shopify`);
+  } catch (err) {
+    if (err.response?.status === 404) {
+      console.warn(`Product with ID ${shopifyProductId} not found in Shopify, proceeding with local deletion`);
+      return;
+    }
+    console.error('Error deleting product from Shopify:', {
+      message: err.message,
+      response: err.response?.data,
+      status: err.response?.status,
+    });
+    throw new Error(`Failed to delete product from Shopify: ${err.message}`);
+  }
+};
+
+// Fetch products from Shopify and sync with MongoDB
+const syncProductsFromShopify = async () => {
+  try {
+    console.log('Attempting to fetch products from Shopify...');
+    const response = await shopifyApi.get('/products.json');
+    console.log('Shopify API Response:', response.data);
+    const shopifyProducts = response.data.products;
+
+    // Get all shopifyProductIds from Shopify
+    const shopifyProductIds = shopifyProducts.map(p => p.id.toString());
+
+    // Remove products from MongoDB that no longer exist in Shopify
+    await db.collection('products').deleteMany({
+      shopifyProductId: { $nin: shopifyProductIds }
+    });
+
+    for (const shopifyProduct of shopifyProducts) {
+      const existingProduct = await db.collection('products').findOne({ shopifyProductId: shopifyProduct.id.toString() });
+
+      const productData = {
+        name: shopifyProduct.title,
+        description: shopifyProduct.body_html || '',
+        price: parseFloat(shopifyProduct.variants[0].price) || 0,
+        category: shopifyProduct.product_type || 'Uncategorized',
+        stock: shopifyProduct.variants[0].inventory_quantity || 0,
+        imageUrl: shopifyProduct.images[0]?.src || '',
+        createdAt: new Date(shopifyProduct.created_at),
+        shopifyProductId: shopifyProduct.id.toString(),
+      };
+
+      if (existingProduct) {
+        // Update existing product
+        await db.collection('products').updateOne(
+          { shopifyProductId: shopifyProduct.id.toString() },
+          { $set: productData }
+        );
+      } else {
+        // Insert new product
+        await db.collection('products').insertOne(productData);
+      }
+    }
+  } catch (err) {
+    console.error('Error syncing products from Shopify:', {
+      message: err.message,
+      response: err.response?.data,
+      status: err.response?.status,
+    });
+    throw new Error(`Failed to sync products from Shopify: ${err.message}`);
+  }
+};
 
 // API Routes
 
@@ -185,11 +383,13 @@ app.post('/api/auth/login', async (req, res) => {
 // Products Routes (Protected with JWT)
 app.get('/api/products', authenticateToken, async (req, res) => {
   try {
+    // Sync with Shopify before returning products
+    await syncProductsFromShopify();
     const products = await db.collection('products').find().toArray();
     res.json(products);
   } catch (err) {
     console.error('Error fetching products:', err);
-    res.status(500).json({ message: 'Server error fetching products' });
+    res.status(500).json({ message: 'Server error fetching products', error: err.message });
   }
 });
 
@@ -200,11 +400,31 @@ app.post('/api/products', authenticateToken, async (req, res) => {
       createdAt: new Date(),
     };
 
+    // Validate required fields
+    if (!product.name || !product.category) {
+      return res.status(400).json({ message: 'Name and category are required' });
+    }
+    if (product.price < 0 || product.stock < 0) {
+      return res.status(400).json({ message: 'Price and stock must be positive numbers' });
+    }
+
     const result = await db.collection('products').insertOne(product);
-    res.status(201).json({ ...product, _id: result.insertedId });
+    const insertedProduct = { ...product, _id: result.insertedId };
+
+    // Sync with Shopify
+    try {
+      const shopifyProductId = await syncProductToShopify(insertedProduct);
+      insertedProduct.shopifyProductId = shopifyProductId.toString();
+    } catch (shopifyErr) {
+      console.error('Shopify sync failed, rolling back MongoDB insertion:', shopifyErr.message);
+      await db.collection('products').deleteOne({ _id: result.insertedId });
+      return res.status(500).json({ message: 'Failed to sync product with Shopify', error: shopifyErr.message });
+    }
+
+    res.status(201).json(insertedProduct);
   } catch (err) {
     console.error('Error creating product:', err);
-    res.status(500).json({ message: 'Server error creating product' });
+    res.status(500).json({ message: 'Server error creating product', error: err.message });
   }
 });
 
@@ -221,46 +441,92 @@ app.get('/api/products/:id', authenticateToken, async (req, res) => {
     res.json(product);
   } catch (err) {
     console.error('Error fetching product:', err);
-    res.status(500).json({ message: 'Server error fetching product' });
+    res.status(500).json({ message: 'Server error fetching product', error: err.message });
   }
 });
 
 app.put('/api/products/:id', authenticateToken, async (req, res) => {
   try {
-    const result = await db.collection('products').updateOne(
-      { _id: new ObjectId(req.params.id) },
-      { $set: req.body }
-    );
+    const product = { ...req.body };
+    delete product._id;
 
-    if (result.matchedCount === 0) {
+    // Validate required fields
+    if (product.name && !product.name) {
+      return res.status(400).json({ message: 'Name is required' });
+    }
+    if (product.category && !product.category) {
+      return res.status(400).json({ message: 'Category is required' });
+    }
+    if (product.price !== undefined && product.price < 0) {
+      return res.status(400).json({ message: 'Price must be a positive number' });
+    }
+    if (product.stock !== undefined && product.stock < 0) {
+      return res.status(400).json({ message: 'Stock must be a positive number' });
+    }
+
+    const existingProduct = await db.collection('products').findOne({ _id: new ObjectId(req.params.id) });
+
+    if (!existingProduct) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    const updatedProduct = await db.collection('products').findOne({
-      _id: new ObjectId(req.params.id),
-    });
+    const result = await db.collection('products').updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: product }
+    );
 
-    res.json(updatedProduct);
+    try {
+      if (existingProduct.shopifyProductId) {
+        const shopifyProductId = await updateProductOnShopify(existingProduct.shopifyProductId, { ...product, _id: req.params.id });
+        if (shopifyProductId) {
+          // Update MongoDB with new shopifyProductId if a new product was created
+          await db.collection('products').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { shopifyProductId: shopifyProductId.toString() } }
+          );
+        }
+      } else {
+        // If no Shopify ID exists, sync as a new product
+        const shopifyProductId = await syncProductToShopify({ ...product, _id: req.params.id });
+        await db.collection('products').updateOne(
+          { _id: new ObjectId(req.params.id) },
+          { $set: { shopifyProductId: shopifyProductId.toString() } }
+        );
+      }
+    } catch (shopifyErr) {
+      console.error('Shopify update failed, but product updated locally:', shopifyErr.message);
+      return res.status(500).json({ message: 'Failed to sync product with Shopify', error: shopifyErr.message });
+    }
+
+    res.json({ message: 'Product updated successfully', result });
   } catch (err) {
     console.error('Error updating product:', err);
-    res.status(500).json({ message: 'Server error updating product' });
+    res.status(500).json({ message: 'Error updating product', error: err.message });
   }
 });
 
 app.delete('/api/products/:id', authenticateToken, async (req, res) => {
   try {
+    const existingProduct = await db.collection('products').findOne({ _id: new ObjectId(req.params.id) });
+
+    if (!existingProduct) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    console.log('Attempting to delete product with shopifyProductId:', existingProduct.shopifyProductId);
+
+    if (existingProduct.shopifyProductId) {
+      await deleteProductFromShopify(existingProduct.shopifyProductId);
+    }
+
     const result = await db.collection('products').deleteOne({
       _id: new ObjectId(req.params.id),
     });
 
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-
     res.json({ message: 'Product deleted successfully' });
   } catch (err) {
     console.error('Error deleting product:', err);
-    res.status(500).json({ message: 'Server error deleting product' });
+    res.status(500).json({ message: 'Server error deleting product', error: err.message });
   }
 });
 
@@ -275,7 +541,7 @@ app.post('/api/upload', authenticateToken, upload.single('image'), (req, res) =>
     res.json({ imageUrl });
   } catch (err) {
     console.error('Error uploading image:', err);
-    res.status(500).json({ message: 'Server error uploading image' });
+    res.status(500).json({ message: 'Server error uploading image', error: err.message });
   }
 });
 

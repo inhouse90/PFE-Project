@@ -11,6 +11,7 @@ export interface Product {
   stock: number;
   imageUrl: string;
   createdAt: string;
+  shopifyProductId?: string;
 }
 
 interface ProductContextType {
@@ -19,8 +20,13 @@ interface ProductContextType {
   error: string | null;
   fetchProducts: () => Promise<void>;
   getProduct: (id: string) => Product | undefined;
+<<<<<<< Updated upstream
   createProduct: (product: Omit<Product, '_id' | 'createdAt'>) => Promise<Product | null>;
   updateProduct: (id: string, updates: Partial<Omit<Product, '_id'>>) => Promise<boolean>;
+=======
+  createProduct: (product: Omit<Product, '_id' | 'createdAt' | 'shopifyProductId'>) => Promise<Product | null>;
+  updateProduct: (id: string, updates: Partial<Omit<Product, '_id' | 'shopifyProductId'>>) => Promise<boolean>;
+>>>>>>> Stashed changes
   deleteProduct: (id: string) => Promise<boolean>;
   uploadImage: (file: File) => Promise<string>;
 }
@@ -62,12 +68,20 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
+<<<<<<< Updated upstream
+=======
+        const errorData = await response.json();
+>>>>>>> Stashed changes
         if (response.status === 401) {
           throw new Error('Unauthorized: Invalid or expired token. Please log in again.');
         } else if (response.status === 403) {
           throw new Error('Forbidden: You do not have permission to access this resource.');
         } else {
+<<<<<<< Updated upstream
           throw new Error(`Failed to fetch products: ${response.statusText}`);
+=======
+          throw new Error(errorData.message || `Failed to fetch products: ${response.statusText}`);
+>>>>>>> Stashed changes
         }
       }
 
@@ -103,12 +117,20 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
+<<<<<<< Updated upstream
+=======
+        const errorData = await response.json();
+>>>>>>> Stashed changes
         if (response.status === 401) {
           throw new Error('Unauthorized: Invalid or expired token. Please log in again.');
         } else if (response.status === 403) {
           throw new Error('Forbidden: You do not have permission to access this resource.');
         } else {
+<<<<<<< Updated upstream
           throw new Error(`Failed to upload image: ${response.statusText}`);
+=======
+          throw new Error(errorData.message || `Failed to upload image: ${response.statusText}`);
+>>>>>>> Stashed changes
         }
       }
 
@@ -120,12 +142,33 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+<<<<<<< Updated upstream
   const createProduct = async (productData: Omit<Product, '_id' | 'createdAt'>): Promise<Product | null> => {
+=======
+  const createProduct = async (productData: Omit<Product, '_id' | 'createdAt' | 'shopifyProductId'>): Promise<Product | null> => {
+>>>>>>> Stashed changes
     if (!token) {
       setError('Cannot create product: No authentication token available.');
       return null;
     }
 
+<<<<<<< Updated upstream
+=======
+    // Validate required fields
+    if (!productData.name || !productData.category) {
+      setError('Name and category are required.');
+      return null;
+    }
+    if (productData.price < 0) {
+      setError('Price must be a positive number.');
+      return null;
+    }
+    if (productData.stock < 0) {
+      setError('Stock must be a positive number.');
+      return null;
+    }
+
+>>>>>>> Stashed changes
     try {
       const response = await fetch('http://localhost:5000/api/products', {
         method: 'POST',
@@ -137,18 +180,30 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
+<<<<<<< Updated upstream
+=======
+        const errorData = await response.json();
+>>>>>>> Stashed changes
         if (response.status === 401) {
           throw new Error('Unauthorized: Invalid or expired token. Please log in again.');
         } else if (response.status === 403) {
           throw new Error('Forbidden: You do not have permission to access this resource.');
         } else {
+<<<<<<< Updated upstream
           throw new Error(`Failed to create product: ${response.statusText}`);
+=======
+          throw new Error(errorData.message || `Failed to create product: ${response.statusText}`);
+>>>>>>> Stashed changes
         }
       }
 
       const newProduct = await response.json();
+<<<<<<< Updated upstream
       // Refresh the product list from the backend to ensure consistency
       await fetchProducts();
+=======
+      await fetchProducts(); // Refresh product list
+>>>>>>> Stashed changes
       return newProduct;
     } catch (err: any) {
       console.error('Error creating product:', err);
@@ -157,12 +212,37 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+<<<<<<< Updated upstream
   const updateProduct = async (id: string, updates: Partial<Omit<Product, '_id'>>): Promise<boolean> => {
+=======
+  const updateProduct = async (id: string, updates: Partial<Omit<Product, '_id' | 'shopifyProductId'>>): Promise<boolean> => {
+>>>>>>> Stashed changes
     if (!token) {
       setError('Cannot update product: No authentication token available.');
       return false;
     }
 
+<<<<<<< Updated upstream
+=======
+    // Validate required fields
+    if (updates.name && !updates.name) {
+      setError('Name is required.');
+      return false;
+    }
+    if (updates.category && !updates.category) {
+      setError('Category is required.');
+      return false;
+    }
+    if (updates.price !== undefined && updates.price < 0) {
+      setError('Price must be a positive number.');
+      return false;
+    }
+    if (updates.stock !== undefined && updates.stock < 0) {
+      setError('Stock must be a positive number.');
+      return false;
+    }
+
+>>>>>>> Stashed changes
     try {
       const response = await fetch(`http://localhost:5000/api/products/${id}`, {
         method: 'PUT',
@@ -174,6 +254,10 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
+<<<<<<< Updated upstream
+=======
+        const errorData = await response.json();
+>>>>>>> Stashed changes
         if (response.status === 401) {
           throw new Error('Unauthorized: Invalid or expired token. Please log in again.');
         } else if (response.status === 403) {
@@ -181,12 +265,20 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
         } else if (response.status === 404) {
           throw new Error('Product not found.');
         } else {
+<<<<<<< Updated upstream
           throw new Error(`Failed to update product: ${response.statusText}`);
         }
       }
 
       // Refresh the product list from the backend
       await fetchProducts();
+=======
+          throw new Error(errorData.message || `Failed to update product: ${response.statusText}`);
+        }
+      }
+
+      await fetchProducts(); // Refresh product list
+>>>>>>> Stashed changes
       return true;
     } catch (err: any) {
       console.error('Error updating product:', err);
@@ -210,6 +302,10 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
+<<<<<<< Updated upstream
+=======
+        const errorData = await response.json();
+>>>>>>> Stashed changes
         if (response.status === 401) {
           throw new Error('Unauthorized: Invalid or expired token. Please log in again.');
         } else if (response.status === 403) {
@@ -217,12 +313,20 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
         } else if (response.status === 404) {
           throw new Error('Product not found.');
         } else {
+<<<<<<< Updated upstream
           throw new Error(`Failed to delete product: ${response.statusText}`);
         }
       }
 
       // Refresh the product list from the backend
       await fetchProducts();
+=======
+          throw new Error(errorData.message || `Failed to delete product: ${response.statusText}`);
+        }
+      }
+
+      await fetchProducts(); // Refresh product list
+>>>>>>> Stashed changes
       return true;
     } catch (err: any) {
       console.error('Error deleting product:', err);
