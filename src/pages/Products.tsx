@@ -16,12 +16,12 @@ import {
 import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, Plus, MoreHorizontal, Pencil, Trash2, Search, Filter, ArrowDown, ArrowUp, Upload, RefreshCw } from 'lucide-react';
+import { Package, Plus, MoreHorizontal, Pencil, Trash2, Search, Filter, ArrowDown, ArrowUp, Upload, RefreshCw, X } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const Products = () => {
-  const { products, isLoading, error, fetchProducts, createProduct, updateProduct, deleteProduct, uploadImage } = useProducts();
+  const { products, isLoading, error, fetchProducts, createProduct, updateProduct, deleteProduct, uploadImages } = useProducts();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -33,7 +33,7 @@ const Products = () => {
     price: 0,
     category: '',
     stock: 0,
-    imageUrl: '',
+    imageUrls: [] as string[], // Changed to array
   });
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -78,53 +78,90 @@ const Products = () => {
 
   // Handle image upload for new product
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    if (files.length === 0) return;
+
+    if (newProduct.imageUrls.length + files.length > 4) {
+      toast({
+        title: 'Too many images',
+        description: 'You can only upload up to 4 images.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsUploading(true);
     try {
-      const imageUrl = await uploadImage(file);
-      setNewProduct({ ...newProduct, imageUrl });
+      const uploadedImageUrls = await uploadImages(files);
+      setNewProduct({ ...newProduct, imageUrls: [...newProduct.imageUrls, ...uploadedImageUrls] });
       toast({
-        title: 'Image uploaded',
-        description: 'Image has been uploaded successfully.',
+        title: 'Images uploaded',
+        description: 'Images have been uploaded successfully.',
       });
     } catch (error: any) {
-      console.error('Error uploading image:', error);
+      console.error('Error uploading images:', error);
       toast({
         title: 'Upload failed',
-        description: error.message || 'Failed to upload image. Please try again.',
+        description: error.message || 'Failed to upload images. Please try again.',
         variant: 'destructive',
       });
     } finally {
       setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = ''; // Reset file input
     }
+  };
+
+  // Handle image removal for new product
+  const handleRemoveImage = (index: number) => {
+    setNewProduct({
+      ...newProduct,
+      imageUrls: newProduct.imageUrls.filter((_, i) => i !== index),
+    });
   };
 
   // Handle image upload for editing product
   const handleEditImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!currentProduct) return;
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    if (files.length === 0) return;
+
+    if (currentProduct.imageUrls.length + files.length > 4) {
+      toast({
+        title: 'Too many images',
+        description: 'You can only upload up to 4 images.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsUploading(true);
     try {
-      const imageUrl = await uploadImage(file);
-      setCurrentProduct({ ...currentProduct, imageUrl });
+      const uploadedImageUrls = await uploadImages(files);
+      setCurrentProduct({ ...currentProduct, imageUrls: [...currentProduct.imageUrls, ...uploadedImageUrls] });
       toast({
-        title: 'Image updated',
-        description: 'Product image has been updated.',
+        title: 'Images updated',
+        description: 'Product images have been updated.',
       });
     } catch (error: any) {
-      console.error('Error updating image:', error);
+      console.error('Error updating images:', error);
       toast({
         title: 'Update failed',
-        description: error.message || 'Failed to update image. Please try again.',
+        description: error.message || 'Failed to update images. Please try again.',
         variant: 'destructive',
       });
     } finally {
       setIsUploading(false);
+      if (editFileInputRef.current) editFileInputRef.current.value = ''; // Reset file input
     }
+  };
+
+  // Handle image removal for editing product
+  const handleEditRemoveImage = (index: number) => {
+    if (!currentProduct) return;
+    setCurrentProduct({
+      ...currentProduct,
+      imageUrls: currentProduct.imageUrls.filter((_, i) => i !== index),
+    });
   };
 
   // Validate price and stock
@@ -170,7 +207,7 @@ const Products = () => {
           price: 0,
           category: '',
           stock: 0,
-          imageUrl: '',
+          imageUrls: [],
         });
         setIsAddDialogOpen(false);
         toast({
@@ -288,10 +325,10 @@ const Products = () => {
                   <span>Add Product</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-3xl">
                 <DialogHeader>
                   <DialogTitle>Add New Product</DialogTitle>
-                  <DialogDescription>Enter the details for the new product.</DialogDescription>
+                  <DialogDescription>Enter the details for the new product. You can upload up to 4 images (first image will be the main image).</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -319,7 +356,7 @@ const Products = () => {
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="price" className="text-right">
-                      Price ($)
+                      Price (MAD)
                     </Label>
                     <Input
                       id="price"
@@ -364,9 +401,7 @@ const Products = () => {
                     />
                   </div>
                   <div className="grid grid-cols-4 items-start gap-4">
-                    <Label htmlFor="image" className="text-right mt-2">
-                      Product Image
-                    </Label>
+                    <Label className="text-right mt-2">Product Images</Label>
                     <div className="col-span-3">
                       <div className="flex flex-col gap-2">
                         <input
@@ -376,13 +411,14 @@ const Products = () => {
                           className="hidden"
                           ref={fileInputRef}
                           onChange={handleImageUpload}
+                          multiple
                         />
                         <div className="flex items-center gap-2">
                           <Button
                             type="button"
                             variant="outline"
                             onClick={() => fileInputRef.current?.click()}
-                            disabled={isUploading}
+                            disabled={isUploading || newProduct.imageUrls.length >= 4}
                             className="flex items-center gap-2"
                           >
                             {isUploading ? (
@@ -405,23 +441,44 @@ const Products = () => {
                             ) : (
                               <>
                                 <Upload className="h-4 w-4" />
-                                <span>Upload Image</span>
+                                <span>Upload Images ({newProduct.imageUrls.length}/4)</span>
                               </>
                             )}
                           </Button>
                         </div>
-                        {newProduct.imageUrl ? (
-                          <div className="mt-2">
-                            <div className="border rounded-md overflow-hidden w-full max-w-[200px] h-[150px]">
-                              <img
-                                src={newProduct.imageUrl}
-                                alt="Product preview"
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
+                        {newProduct.imageUrls.length > 0 ? (
+                          <div className="mt-2 grid grid-cols-4 gap-2">
+                            {newProduct.imageUrls.map((url, index) => (
+                              <div key={index} className="relative">
+                                <div className="border rounded-md overflow-hidden w-full h-[100px]">
+                                  <img
+                                    src={url}
+                                    alt={`Product image ${index + 1}`}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.src = 'https://via.placeholder.com/100'; // Fallback image
+                                      console.error(`Failed to load image for new product: ${url}`);
+                                    }}
+                                  />
+                                </div>
+                                <Button
+                                  variant="destructive"
+                                  size="icon"
+                                  className="absolute top-1 right-1 h-6 w-6"
+                                  onClick={() => handleRemoveImage(index)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                                {index === 0 && (
+                                  <span className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
+                                    Main
+                                  </span>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         ) : (
-                          <div className="mt-2 border rounded-md w-full max-w-[200px] h-[150px] flex items-center justify-center bg-gray-100">
+                          <div className="mt-2 border rounded-md w-full h-[100px] flex items-center justify-center bg-gray-100">
                             <Package className="h-6 w-6 text-gray-400" />
                           </div>
                         )}
@@ -527,9 +584,17 @@ const Products = () => {
                       <TableCell className="font-medium">{product._id.slice(0, 5)}...</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {product.imageUrl ? (
+                          {product.imageUrls && product.imageUrls.length > 0 ? (
                             <div className="w-10 h-10 rounded-md overflow-hidden">
-                              <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                              <img
+                                src={product.imageUrls[0]} // Display the main image
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.src = 'https://via.placeholder.com/40'; // Fallback image
+                                  console.error(`Failed to load main image for ${product.name}: ${product.imageUrls[0]}`);
+                                }}
+                              />
                             </div>
                           ) : (
                             <div className="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center">
@@ -540,7 +605,7 @@ const Products = () => {
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">{product.category}</TableCell>
-                      <TableCell>${product.price.toFixed(2)}</TableCell>
+                      <TableCell>{product.price.toFixed(2)} MAD</TableCell>
                       <TableCell>{product.stock}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -589,10 +654,10 @@ const Products = () => {
 
       {/* Edit Product Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
-            <DialogDescription>Update the product details.</DialogDescription>
+            <DialogDescription>Update the product details. You can upload up to 4 images (first image will be the main image).</DialogDescription>
           </DialogHeader>
           {currentProduct && (
             <div className="grid gap-4 py-4">
@@ -620,7 +685,7 @@ const Products = () => {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-price" className="text-right">
-                  Price ($)
+                  Price (MAD)
                 </Label>
                 <Input
                   id="edit-price"
@@ -664,9 +729,7 @@ const Products = () => {
                 />
               </div>
               <div className="grid grid-cols-4 items-start gap-4">
-                <Label htmlFor="edit-image" className="text-right mt-2">
-                  Product Image
-                </Label>
+                <Label className="text-right mt-2">Product Images</Label>
                 <div className="col-span-3">
                   <div className="flex flex-col gap-2">
                     <input
@@ -676,13 +739,14 @@ const Products = () => {
                       className="hidden"
                       ref={editFileInputRef}
                       onChange={handleEditImageUpload}
+                      multiple
                     />
                     <div className="flex items-center gap-2">
                       <Button
                         type="button"
                         variant="outline"
                         onClick={() => editFileInputRef.current?.click()}
-                        disabled={isUploading}
+                        disabled={isUploading || currentProduct.imageUrls.length >= 4}
                         className="flex items-center gap-2"
                       >
                         {isUploading ? (
@@ -705,23 +769,44 @@ const Products = () => {
                         ) : (
                           <>
                             <Upload className="h-4 w-4" />
-                            <span>Change Image</span>
+                            <span>Upload Images ({currentProduct.imageUrls.length}/4)</span>
                           </>
                         )}
                       </Button>
                     </div>
-                    {currentProduct.imageUrl ? (
-                      <div className="mt-2">
-                        <div className="border rounded-md overflow-hidden w-full max-w-[200px] h-[150px]">
-                          <img
-                            src={currentProduct.imageUrl}
-                            alt="Product preview"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
+                    {currentProduct.imageUrls.length > 0 ? (
+                      <div className="mt-2 grid grid-cols-4 gap-2">
+                        {currentProduct.imageUrls.map((url, index) => (
+                          <div key={index} className="relative">
+                            <div className="border rounded-md overflow-hidden w-full h-[100px]">
+                              <img
+                                src={url}
+                                alt={`Product image ${index + 1}`}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.src = 'https://via.placeholder.com/100'; // Fallback image
+                                  console.error(`Failed to load image for ${currentProduct.name}: ${url}`);
+                                }}
+                              />
+                            </div>
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-1 right-1 h-6 w-6"
+                              onClick={() => handleEditRemoveImage(index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                            {index === 0 && (
+                              <span className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
+                                Main
+                              </span>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     ) : (
-                      <div className="mt-2 border rounded-md w-full max-w-[200px] h-[150px] flex items-center justify-center bg-gray-100">
+                      <div className="mt-2 border rounded-md w-full h-[100px] flex items-center justify-center bg-gray-100">
                         <Package className="h-6 w-6 text-gray-400" />
                       </div>
                     )}
