@@ -1,177 +1,95 @@
+import { useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { LogOut, Package, ShoppingCart, Menu } from 'lucide-react';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarTrigger,
-  SidebarProvider
-} from "@/components/ui/sidebar";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { 
-  ShoppingBag, Home, LogOut, Settings, User, Menu, Users, Package, 
-  ChevronDown, Bell, Search
-} from "lucide-react";
-
-interface DashboardLayoutProps {
-  children: React.ReactNode;
-}
-
-export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
+const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { user, logout, isAuthenticated } = useAuth();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const location = useLocation();
 
-  // Check if user is authenticated
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate("/signin");
-    }
-  }, [isAuthenticated, navigate]);
+    if (!user) navigate('/signin');
+  }, [user, navigate]);
 
   const handleLogout = () => {
     logout();
-    navigate("/signin");
+    navigate('/signin');
   };
 
+  const navItems = [
+    { path: '/dashboard', label: 'Dashboard', icon: <Package className="h-5 w-5" /> },
+    { path: '/dashboard/products', label: 'Products', icon: <Package className="h-5 w-5" /> },
+    { path: '/dashboard/orders', label: 'Orders', icon: <ShoppingCart className="h-5 w-5" /> },
+  ];
+
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-gray-50">
-        <Sidebar>
-          <SidebarHeader className="flex items-center p-4 border-b border-gray-200">
-            <div className="flex items-center space-x-2">
-              <ShoppingBag className="w-6 h-6 text-blue-600" />
-              <span className="font-bold text-xl">Admin</span>
-            </div>
-          </SidebarHeader>
-          <SidebarContent className="py-4">
-            <SidebarGroup>
-              <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton onClick={() => navigate("/dashboard")} className="w-full">
-                      <Home className="w-5 h-5 mr-2" />
-                      <span>Dashboard</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton onClick={() => navigate("/dashboard/products")} className="w-full">
-                      <Package className="w-5 h-5 mr-2" />
-                      <span>Products</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton onClick={() => navigate("/dashboard/users")} className="w-full">
-                      <Users className="w-5 h-5 mr-2" />
-                      <span>Users</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-            <SidebarGroup>
-              <SidebarGroupLabel>Settings</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton onClick={() => navigate("/dashboard/profile")} className="w-full">
-                      <User className="w-5 h-5 mr-2" />
-                      <span>Profile</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton onClick={() => navigate("/dashboard/settings")} className="w-full">
-                      <Settings className="w-5 h-5 mr-2" />
-                      <span>Settings</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </SidebarContent>
-          <SidebarFooter className="p-4 border-t border-gray-200">
-            <Button 
-              variant="outline"
-              className="w-full flex items-center justify-center"
-              onClick={handleLogout}
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              <span>Logout</span>
-            </Button>
-          </SidebarFooter>
-        </Sidebar>
-        
-        <div className="flex-1 flex flex-col min-h-screen">
-          <header className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
-            <div className="flex items-center">
-              <SidebarTrigger>
-                <Button variant="ghost" size="icon">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </SidebarTrigger>
-              <div className="ml-4 hidden md:block">
-                <h1 className="text-xl font-semibold text-gray-800">Admin Dashboard</h1>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <Button variant="ghost" size="icon">
-                  <Bell className="h-5 w-5" />
-                </Button>
-              </div>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src="https://github.com/shadcn.png" alt={user?.name || "User"} />
-                      <AvatarFallback>{user?.name?.charAt(0) || "U"}</AvatarFallback>
-                    </Avatar>
-                    <span className="hidden md:inline-block">{user?.name}</span>
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate("/dashboard/profile")}>
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate("/dashboard/settings")}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Logout</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </header>
-          
-          <main className="flex-1 p-6">
-            {children}
-          </main>
+    <div className="min-h-screen flex">
+      <aside className="hidden md:block w-64 bg-gray-800 text-white">
+        <div className="p-4">
+          <h1 className="text-2xl font-bold">Admin Dashboard</h1>
         </div>
-      </div>
-    </SidebarProvider>
+        <nav className="mt-4">
+          <ul>
+            {navItems.map((item) => (
+              <li key={item.path}>
+                <Link
+                  to={item.path}
+                  className={`flex items-center gap-2 px-4 py-2 ${location.pathname === item.path ? 'bg-gray-700' : 'hover:bg-gray-700'}`}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="p-4 absolute bottom-0 w-full">
+          <Button variant="ghost" className="w-full justify-start text-white hover:bg-gray-700" onClick={handleLogout}>
+            <LogOut className="mr-2 h-5 w-5" />
+            Logout
+          </Button>
+        </div>
+      </aside>
+
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button variant="outline" size="icon" className="md:hidden fixed top-4 left-4 z-50">
+            <Menu className="h-5 w-5" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="left" className="w-64 bg-gray-800 text-white">
+          <div className="p-4">
+            <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+          </div>
+          <nav className="mt-4">
+            <ul>
+              {navItems.map((item) => (
+                <li key={item.path}>
+                  <Link
+                    to={item.path}
+                    className={`flex items-center gap-2 px-4 py-2 ${location.pathname === item.path ? 'bg-gray-700' : 'hover:bg-gray-700'}`}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <div className="p-4">
+            <Button variant="ghost" className="w-full justify-start text-white hover:bg-gray-700" onClick={handleLogout}>
+              <LogOut className="mr-2 h-5 w-5" />
+              Logout
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <main className="flex-1 p-6 bg-gray-100">{children}</main>
+    </div>
   );
 };
 
