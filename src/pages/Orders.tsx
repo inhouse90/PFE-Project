@@ -62,6 +62,8 @@ const Orders = () => {
     setIsGeneratingPDF(true);
     try {
       const doc = new jsPDF();
+      doc.setFont('Inter', 'normal');
+      doc.setFontSize(12);
       const logoUrl = '/logo-shopify.png';
       const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -73,10 +75,10 @@ const Orders = () => {
       doc.text(`Paid on ${new Date(order.createdAt).toLocaleDateString()}`, 60, 40);
       doc.text(new Date(order.createdAt).toLocaleDateString(), 60, 50);
 
-      doc.setFillColor(240, 240, 240);
+      doc.setFillColor(30, 30, 30);
       doc.rect(20, 60, pageWidth - 40, 50, 'F');
       doc.setFontSize(14);
-      doc.setTextColor(0, 0, 0);
+      doc.setTextColor(255, 255, 255);
       doc.text('shopify', 30, 70);
       doc.setFontSize(10);
       doc.text('Shopify International Limited', 30, 80);
@@ -84,7 +86,7 @@ const Orders = () => {
       doc.text('Haddington Road', 30, 100);
       doc.text('Dublin 4, D04 XN32, Ireland', 30, 110);
 
-      doc.setFillColor(255, 255, 255);
+      doc.setFillColor(0, 0, 0);
       doc.rect(pageWidth - 60, 60, 40, 50, 'F');
       doc.setFontSize(14);
       doc.text('TOTAL DUE', pageWidth - 50, 70, { align: 'right' });
@@ -92,7 +94,7 @@ const Orders = () => {
       doc.setFontSize(10);
       doc.text('Visa ending in 4843', pageWidth - 50, 90, { align: 'right' });
 
-      doc.setFillColor(240, 240, 240);
+      doc.setFillColor(30, 30, 30);
       doc.rect(20, 120, pageWidth - 40, 80, 'F');
       doc.setFontSize(14);
       doc.text('OVERVIEW', 30, 130);
@@ -130,7 +132,7 @@ const Orders = () => {
       doc.text(`Paid on ${new Date(order.createdAt).toLocaleDateString()}`, 60, 40);
       doc.text(new Date(order.createdAt).toLocaleDateString(), 60, 50);
 
-      doc.setFillColor(240, 240, 240);
+      doc.setFillColor(30, 30, 30);
       doc.rect(20, 60, pageWidth - 40, 50, 'F');
       doc.setFontSize(14);
       doc.text('shopify', 30, 70);
@@ -140,7 +142,7 @@ const Orders = () => {
       doc.text('Haddington Road', 30, 100);
       doc.text('Dublin 4, D04 XN32, Ireland', 30, 110);
 
-      doc.setFillColor(240, 240, 240);
+      doc.setFillColor(30, 30, 30);
       doc.rect(20, 120, pageWidth - 40, 80, 'F');
       doc.setFontSize(14);
       doc.text('DETAILED VIEW', 30, 130);
@@ -207,13 +209,13 @@ const Orders = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 bg-gray-900 text-white min-h-screen p-6 font-sans">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Orders</h1>
-            <p className="text-gray-500">View your Shopify orders</p>
+            <h1 className="text-3xl font-bold text-white">Orders</h1>
+            <p className="text-sm text-gray-400 font-normal">View your Shopify orders</p>
           </div>
-          <Button className="flex items-center gap-2" onClick={handleRefresh}>
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 font-medium text-sm" onClick={handleRefresh}>
             <RefreshCw className="h-4 w-4" />
             <span>Refresh</span>
           </Button>
@@ -224,7 +226,7 @@ const Orders = () => {
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Search orders..."
-              className="pl-8"
+              className="pl-8 bg-gray-800 border-gray-600 text-white placeholder-gray-400 text-sm font-normal"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -232,73 +234,77 @@ const Orders = () => {
         </div>
 
         {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+          <Alert variant="destructive" className="bg-red-900/20 border-red-700 text-red-400 font-sans">
+            <AlertDescription className="text-sm font-normal">{error}</AlertDescription>
           </Alert>
         )}
 
         {isLoading ? (
-          <div className="text-center py-8">
-            <svg className="animate-spin h-8 w-8 text-primary mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <div className="text-center py-8 font-sans">
+            <svg className="animate-spin h-8 w-8 text-blue-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <p className="mt-2 text-gray-500">Loading orders...</p>
+            <p className="mt-2 text-sm text-gray-400 font-normal">Loading orders...</p>
           </div>
         ) : (
-          <div className="border rounded-md">
+          <div className="border border-gray-700 rounded-lg bg-black font-sans">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Order #</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Payment Status</TableHead>
-                  <TableHead>Fulfillment Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                <TableRow className="bg-gray-800 hover:bg-gray-700">
+                  <TableHead className="text-gray-400 text-sm font-medium">Order #</TableHead>
+                  <TableHead className="text-gray-400 text-sm font-medium">Date</TableHead>
+                  <TableHead className="text-gray-400 text-sm font-medium">Customer</TableHead>
+                  <TableHead className="text-gray-400 text-sm font-medium">Total</TableHead>
+                  <TableHead className="text-gray-400 text-sm font-medium">Payment Status</TableHead>
+                  <TableHead className="text-gray-400 text-sm font-medium">Fulfillment Status</TableHead>
+                  <TableHead className="text-right text-gray-400 text-sm font-medium">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredOrders.length > 0 ? (
                   filteredOrders.map((order) => (
-                    <TableRow key={order._id}>
-                      <TableCell>#{order.orderNumber}</TableCell>
-                      <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
-                      <TableCell>{order.customer ? `${order.customer.firstName} ${order.customer.lastName}` : 'N/A'}</TableCell>
-                      <TableCell>{order.totalPrice.toFixed(2)} {order.currency}</TableCell>
-                      <TableCell>{order.status}</TableCell>
-                      <TableCell>{order.fulfillmentStatus}</TableCell>
+                    <TableRow key={order._id} className="border-gray-700 hover:bg-gray-800">
+                      <TableCell className="text-white text-sm font-medium">#{order.orderNumber}</TableCell>
+                      <TableCell className="text-gray-400 text-sm font-normal">{new Date(order.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-white text-sm font-medium">{order.customer ? `${order.customer.firstName} ${order.customer.lastName}` : 'N/A'}</TableCell>
+                      <TableCell className="text-blue-400 text-sm font-medium">{order.totalPrice.toFixed(2)} {order.currency}</TableCell>
+                      <TableCell className="text-gray-400 text-sm font-normal">{order.status}</TableCell>
+                      <TableCell className="text-gray-400 text-sm font-normal">{order.fulfillmentStatus}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
-                            className="button-outline"
+                            variant="outline"
                             size="icon"
                             onClick={() => handleViewDetails(order)}
+                            className="bg-gray-800 border-gray-600 text-blue-400 hover:bg-blue-900/50"
                           >
                             <Info className="h-4 w-4" />
                           </Button>
                           <Button
-                            className="button-outline"
+                            variant="outline"
                             size="icon"
                             onClick={() => handleGeneratePDF(order)}
                             disabled={isGeneratingPDF}
+                            className="bg-gray-800 border-gray-600 text-blue-400 hover:bg-blue-900/50"
                           >
                             <FileText className="h-4 w-4" />
                           </Button>
                           <Button
-                            className="button-outline"
+                            variant="outline"
                             size="icon"
                             onClick={() => handleSendEmail(order)}
                             disabled={isSendingEmail || !order.customer?.email}
+                            className="bg-gray-800 border-gray-600 text-blue-400 hover:bg-blue-900/50"
                           >
                             <Mail className="h-4 w-4" />
                           </Button>
                           <Button
-                            className="button-outline"
+                            variant="outline"
                             size="icon"
                             onClick={() => handleSendSMS(order)}
                             disabled={isSendingSMS || !order.customer?.phone}
+                            className="bg-gray-800 border-gray-600 text-blue-400 hover:bg-blue-900/50"
                           >
                             <MessageSquare className="h-4 w-4" />
                           </Button>
@@ -308,7 +314,7 @@ const Orders = () => {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={7} className="text-center py-8 text-gray-400 text-sm font-normal">
                       {searchTerm ? 'No orders found matching your search.' : 'No orders found.'}
                     </TableCell>
                   </TableRow>
@@ -319,38 +325,38 @@ const Orders = () => {
         )}
 
         <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
-          <DialogContent className="max-w-2xl bg-white rounded-lg shadow-lg p-6">
+          <DialogContent className="max-w-2xl bg-black border border-gray-700 rounded-lg shadow-lg font-sans">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-bold text-gray-900 border-b pb-2">Order Details</DialogTitle>
-              <DialogDescription className="text-gray-600 mt-2">
+              <DialogTitle className="text-2xl font-bold text-white border-b border-gray-700 pb-2">Order Details</DialogTitle>
+              <DialogDescription className="text-sm text-gray-400 font-normal">
                 Detailed information about the selected order.
               </DialogDescription>
             </DialogHeader>
             {selectedOrder && (
               <div className="mt-4 space-y-6">
-                <div className="bg-gray-100 p-4 rounded-md shadow-sm">
-                  <h3 className="text-lg font-semibold text-blue-900 mb-2">Order Information</h3>
-                  <div className="grid grid-cols-2 gap-4 text-gray-700">
-                    <div><span className="font-medium">Order Number:</span> #{selectedOrder.orderNumber}</div>
-                    <div><span className="font-medium">Date:</span> {new Date(selectedOrder.createdAt).toLocaleDateString()}</div>
-                    <div><span className="font-medium">Total:</span> {selectedOrder.totalPrice.toFixed(2)} {selectedOrder.currency}</div>
-                    <div><span className="font-medium">Payment Status:</span> {selectedOrder.status}</div>
-                    <div><span className="font-medium">Fulfillment Status:</span> {selectedOrder.fulfillmentStatus}</div>
+                <div className="bg-gray-800 p-4 rounded-md shadow-sm">
+                  <h3 className="text-lg font-semibold text-blue-400 mb-2">Order Information</h3>
+                  <div className="grid grid-cols-2 gap-4 text-gray-400 text-sm font-normal">
+                    <div><span className="font-medium text-white">Order Number:</span> #{selectedOrder.orderNumber}</div>
+                    <div><span className="font-medium text-white">Date:</span> {new Date(selectedOrder.createdAt).toLocaleDateString()}</div>
+                    <div><span className="font-medium text-white">Total:</span> {selectedOrder.totalPrice.toFixed(2)} {selectedOrder.currency}</div>
+                    <div><span className="font-medium text-white">Payment Status:</span> {selectedOrder.status}</div>
+                    <div><span className="font-medium text-white">Fulfillment Status:</span> {selectedOrder.fulfillmentStatus}</div>
                   </div>
                 </div>
-                <div className="bg-gray-100 p-4 rounded-md shadow-sm">
-                  <h3 className="text-lg font-semibold text-blue-900 mb-2">Customer Information</h3>
-                  <div className="grid grid-cols-2 gap-4 text-gray-700">
-                    <div><span className="font-medium">Name:</span> {selectedOrder.customer ? `${selectedOrder.customer.firstName} ${selectedOrder.customer.lastName}` : 'N/A'}</div>
-                    <div><span className="font-medium">Email:</span> {selectedOrder.customer?.email || 'N/A'}</div>
+                <div className="bg-gray-800 p-4 rounded-md shadow-sm">
+                  <h3 className="text-lg font-semibold text-blue-400 mb-2">Customer Information</h3>
+                  <div className="grid grid-cols-2 gap-4 text-gray-400 text-sm font-normal">
+                    <div><span className="font-medium text-white">Name:</span> {selectedOrder.customer ? `${selectedOrder.customer.firstName} ${selectedOrder.customer.lastName}` : 'N/A'}</div>
+                    <div><span className="font-medium text-white">Email:</span> {selectedOrder.customer?.email || 'N/A'}</div>
                   </div>
                 </div>
-                <div className="bg-gray-50 p-4 rounded-md">
-                  <h3 className="text-lg font-semibold text-gray-800">Items</h3>
-                  <ul className="mt-2 space-y-2">
+                <div className="bg-gray-800 p-4 rounded-md">
+                  <h3 className="text-lg font-semibold text-blue-400">Items</h3>
+                  <ul className="mt-2 space-y-2 text-sm font-normal">
                     {selectedOrder.lineItems.map((item, index) => (
-                      <li key={index} className="text-gray-700">
-                        <span className="font-medium">{item.title}</span> - Quantity: {item.quantity} - Price: {item.price.toFixed(2)} {selectedOrder.currency}
+                      <li key={index} className="text-gray-400">
+                        <span className="font-medium text-white">{item.title}</span> - Quantity: {item.quantity} - Price: {item.price.toFixed(2)} {selectedOrder.currency}
                       </li>
                     ))}
                   </ul>
