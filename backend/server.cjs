@@ -35,8 +35,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-
-
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -49,11 +47,6 @@ if (!fs.existsSync(uploadDir)) {
 }
 app.use('/uploads', express.static(uploadDir));
 
-// Serve static files from the React app in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'dist')));
-}
-
 // MongoDB Connection
 let db;
 const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/admin_dashboard';
@@ -62,9 +55,9 @@ async function connectToMongo() {
   try {
     const client = new MongoClient(mongoUri);
     await client.connect();
-    console.log('Connected to MongoDB');
+    console.log('Connected to MongoDB at', new Date().toISOString());
     db = client.db(process.env.MONGODB_DB || 'admin_dashboard');
-    
+
     if (!(await db.listCollections({ name: 'users' }).hasNext())) {
       await db.createCollection('users');
       const adminExists = await db.collection('users').findOne({ email: 'admin@example.com' });
@@ -77,19 +70,21 @@ async function connectToMongo() {
           role: 'admin',
           createdAt: new Date(),
         });
-        console.log('Admin user created');
+        console.log('Admin user created at', new Date().toISOString());
       }
     }
-    
+
     if (!(await db.listCollections({ name: 'products' }).hasNext())) {
       await db.createCollection('products');
+      console.log('Products collection created at', new Date().toISOString());
     }
-    
+
     if (!(await db.listCollections({ name: 'orders' }).hasNext())) {
       await db.createCollection('orders');
+      console.log('Orders collection created at', new Date().toISOString());
     }
   } catch (err) {
-    console.error('MongoDB connection error:', err);
+    console.error('MongoDB connection error at', new Date().toISOString(), ':', err);
     process.exit(1);
   }
 }
@@ -98,15 +93,14 @@ async function connectToMongo() {
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  if (!token) {
-    return res.status(401).json({ message: 'Access token required' });
-  }
+  if (!token) return res.status(401).json({ message: 'Access token required', timestamp: new Date().toISOString() });
+
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();
   } catch (err) {
-    return res.status(403).json({ message: 'Invalid token' });
+    return res.status(403).json({ message: 'Invalid token', timestamp: new Date().toISOString(), error: err.message });
   }
 };
 
@@ -144,34 +138,30 @@ const shopifyApi = axios.create({
 // Sync product with Shopify
 const syncProductToShopify = async (product) => {
   try {
-    if (!product.name) throw new Error('Product name is required');
-    if (!product.price || product.price < 0) throw new Error('Valid product price is required');
-
+    console.log('Syncing product to Shopify at', new Date().toISOString(), ':', product);
     const shopifyProduct = {
       product: {
         title: product.name,
         body_html: product.description || '',
         vendor: 'Your Vendor Name',
         product_type: product.category || 'Uncategorized',
-        images: product.imageUrls && product.imageUrls.length > 0 
+        images: product.imageUrls && product.imageUrls.length > 0
           ? product.imageUrls.map((url, index) => ({ src: url, position: index + 1 }))
           : [],
         variants: [{ price: product.price.toFixed(2), inventory_quantity: product.stock || 0, inventory_management: 'shopify' }],
         status: 'active',
       },
     };
-
     const response = await shopifyApi.post('/products.json', shopifyProduct);
     const shopifyProductId = response.data.product.id;
-
     await db.collection('products').updateOne(
       { _id: new ObjectId(product._id) },
       { $set: { shopifyProductId: shopifyProductId.toString() } }
     );
-
+    console.log('Product synced with Shopify, ID:', shopifyProductId, 'at', new Date().toISOString());
     return shopifyProductId;
   } catch (err) {
-    console.error('Error syncing product to Shopify:', err.message);
+    console.error('Shopify sync error at', new Date().toISOString(), ':', err.response ? err.response.data : err.message);
     throw new Error(`Failed to sync product with Shopify: ${err.message}`);
   }
 };
@@ -179,9 +169,6 @@ const syncProductToShopify = async (product) => {
 // Update product on Shopify
 const updateProductOnShopify = async (shopifyProductId, product) => {
   try {
-    if (!product.name) throw new Error('Product name is required');
-    if (product.price !== undefined && product.price < 0) throw new Error('Valid product price is required');
-
     const shopifyProduct = {
       product: {
         id: shopifyProductId,
@@ -191,19 +178,14 @@ const updateProductOnShopify = async (shopifyProductId, product) => {
         variants: [{ price: product.price.toFixed(2), inventory_quantity: product.stock || 0 }],
       },
     };
-
     if (product.imageUrls && product.imageUrls.length > 0) {
       shopifyProduct.product.images = product.imageUrls.map((url, index) => ({ src: url, position: index + 1 }));
     }
-
     const response = await shopifyApi.put(`/products/${shopifyProductId}.json`, shopifyProduct);
+    console.log('Product updated on Shopify at', new Date().toISOString(), ':', response.data);
     return response.data;
   } catch (err) {
-    if (err.response?.status === 404) {
-      console.warn(`Product with ID ${shopifyProductId} not found in Shopify, attempting to create new product`);
-      return await syncProductToShopify({ ...product, _id: product._id });
-    }
-    console.error('Error updating product on Shopify:', err.message);
+    console.error('Shopify update error at', new Date().toISOString(), ':', err.response ? err.response.data : err.message);
     throw new Error(`Failed to update product on Shopify: ${err.message}`);
   }
 };
@@ -212,107 +194,19 @@ const updateProductOnShopify = async (shopifyProductId, product) => {
 const deleteProductFromShopify = async (shopifyProductId) => {
   try {
     await shopifyApi.delete(`/products/${shopifyProductId}.json`);
+    console.log('Product deleted from Shopify at', new Date().toISOString(), ':', shopifyProductId);
   } catch (err) {
-    if (err.response?.status === 404) {
-      console.warn(`Product with ID ${shopifyProductId} not found in Shopify, proceeding with local deletion`);
-      return;
-    }
-    console.error('Error deleting product from Shopify:', err.message);
+    console.error('Shopify delete error at', new Date().toISOString(), ':', err.response ? err.response.data : err.message);
     throw new Error(`Failed to delete product from Shopify: ${err.message}`);
   }
 };
 
-// Sync products from Shopify
-const syncProductsFromShopify = async () => {
-  try {
-    const response = await shopifyApi.get('/products.json');
-    const shopifyProducts = response.data.products;
-
-    const shopifyProductIds = shopifyProducts.map(p => p.id.toString());
-    await db.collection('products').deleteMany({ shopifyProductId: { $nin: shopifyProductIds } });
-
-    for (const shopifyProduct of shopifyProducts) {
-      const existingProduct = await db.collection('products').findOne({ shopifyProductId: shopifyProduct.id.toString() });
-
-      const productData = {
-        name: shopifyProduct.title,
-        description: shopifyProduct.body_html || '',
-        price: parseFloat(shopifyProduct.variants[0].price) || 0,
-        category: shopifyProduct.product_type || 'Uncategorized',
-        stock: shopifyProduct.variants[0].inventory_quantity || 0,
-        imageUrls: shopifyProduct.images.map(img => img.src) || [],
-        createdAt: new Date(shopifyProduct.created_at),
-        shopifyProductId: shopifyProduct.id.toString(),
-      };
-
-      if (existingProduct) {
-        await db.collection('products').updateOne({ shopifyProductId: shopifyProduct.id.toString() }, { $set: productData });
-      } else {
-        await db.collection('products').insertOne(productData);
-      }
-    }
-  } catch (err) {
-    console.error('Error syncing products from Shopify:', err.message);
-    throw new Error(`Failed to sync products from Shopify: ${err.message}`);
-  }
-};
-
-// Sync orders from Shopify
-const syncOrdersFromShopify = async () => {
-  try {
-    const response = await shopifyApi.get('/orders.json?status=any');
-    const shopifyOrders = response.data.orders;
-
-    const shopifyOrderIds = shopifyOrders.map(o => o.id.toString());
-    await db.collection('orders').deleteMany({ shopifyOrderId: { $nin: shopifyOrderIds } });
-
-    for (const shopifyOrder of shopifyOrders) {
-      const existingOrder = await db.collection('orders').findOne({ shopifyOrderId: shopifyOrder.id.toString() });
-
-      const orderData = {
-        shopifyOrderId: shopifyOrder.id.toString(),
-        orderNumber: shopifyOrder.order_number,
-        customer: shopifyOrder.customer ? {
-          firstName: shopifyOrder.customer.first_name || '',
-          lastName: shopifyOrder.customer.last_name || '',
-          email: shopifyOrder.customer.email || '',
-          phone: shopifyOrder.customer.phone || '', // Ajout du numéro de téléphone
-        } : null,
-        totalPrice: parseFloat(shopifyOrder.total_price) || 0,
-        currency: shopifyOrder.currency || 'MAD',
-        status: shopifyOrder.financial_status || 'pending',
-        fulfillmentStatus: shopifyOrder.fulfillment_status || 'unfulfilled',
-        lineItems: shopifyOrder.line_items.map(item => ({
-          productId: item.product_id?.toString() || '',
-          variantId: item.variant_id?.toString() || '',
-          title: item.title || '',
-          quantity: item.quantity || 0,
-          price: parseFloat(item.price) || 0,
-        })) || [],
-        createdAt: new Date(shopifyOrder.created_at),
-        updatedAt: new Date(shopifyOrder.updated_at),
-      };
-
-      if (existingOrder) {
-        await db.collection('orders').updateOne({ shopifyOrderId: shopifyOrder.id.toString() }, { $set: orderData });
-      } else {
-        await db.collection('orders').insertOne(orderData);
-      }
-    }
-  } catch (err) {
-    console.error('Error syncing orders from Shopify:', err.message);
-    throw new Error(`Failed to sync orders from Shopify: ${err.message}`);
-  }
-};
-
 // API Routes
-
-// Auth Routes
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
     const existingUser = await db.collection('users').findOne({ email });
-    if (existingUser) return res.status(400).json({ message: 'User already exists' });
+    if (existingUser) return res.status(400).json({ message: 'User already exists', timestamp: new Date().toISOString() });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = { name, email, password: hashedPassword, role: 'admin', createdAt: new Date() };
@@ -322,10 +216,10 @@ app.post('/api/auth/register', async (req, res) => {
     const { password: _, ...userWithoutPassword } = newUser;
     userWithoutPassword._id = result.insertedId;
 
-    res.status(201).json({ success: true, user: userWithoutPassword, token });
+    res.status(201).json({ success: true, user: userWithoutPassword, token, timestamp: new Date().toISOString() });
   } catch (err) {
-    console.error('Registration error:', err);
-    res.status(500).json({ message: 'Server error during registration' });
+    console.error('Registration error at', new Date().toISOString(), ':', err);
+    res.status(500).json({ message: 'Server error during registration', error: err.message, timestamp: new Date().toISOString() });
   }
 });
 
@@ -333,38 +227,37 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await db.collection('users').findOne({ email });
-    if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+    if (!user) return res.status(400).json({ message: 'Invalid credentials', timestamp: new Date().toISOString() });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials', timestamp: new Date().toISOString() });
 
     const token = jwt.sign({ id: user._id.toString(), email, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
     const { password: _, ...userWithoutPassword } = user;
 
-    res.json({ success: true, user: userWithoutPassword, token });
+    res.json({ success: true, user: userWithoutPassword, token, timestamp: new Date().toISOString() });
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ message: 'Server error during login' });
+    console.error('Login error at', new Date().toISOString(), ':', err);
+    res.status(500).json({ message: 'Server error during login', error: err.message, timestamp: new Date().toISOString() });
   }
 });
 
-// Products Routes
 app.get('/api/products', authenticateToken, async (req, res) => {
   try {
-    await syncProductsFromShopify();
+    console.log('Fetching products for user:', req.user, 'at', new Date().toISOString());
     const products = await db.collection('products').find().toArray();
+    console.log('Products found at', new Date().toISOString(), ':', products);
     res.json(products);
   } catch (err) {
-    console.error('Error fetching products:', err);
-    res.status(500).json({ message: 'Server error fetching products', error: err.message });
+    console.error('Error fetching products at', new Date().toISOString(), ':', err);
+    res.status(500).json({ message: 'Server error fetching products', error: err.message, timestamp: new Date().toISOString() });
   }
 });
 
 app.post('/api/products', authenticateToken, async (req, res) => {
   try {
     const product = { ...req.body, createdAt: new Date() };
-    if (!product.name || !product.category) return res.status(400).json({ message: 'Name and category are required' });
-    if (product.price < 0 || product.stock < 0) return res.status(400).json({ message: 'Price and stock must be positive numbers' });
+    if (!product.name || !product.category) return res.status(400).json({ message: 'Name and category are required', timestamp: new Date().toISOString() });
 
     const result = await db.collection('products').insertOne(product);
     const insertedProduct = { ...product, _id: result.insertedId };
@@ -372,21 +265,11 @@ app.post('/api/products', authenticateToken, async (req, res) => {
     const shopifyProductId = await syncProductToShopify(insertedProduct);
     insertedProduct.shopifyProductId = shopifyProductId.toString();
 
+    console.log('Product created at', new Date().toISOString(), ':', insertedProduct);
     res.status(201).json(insertedProduct);
   } catch (err) {
-    console.error('Error creating product:', err);
-    res.status(500).json({ message: 'Server error creating product', error: err.message });
-  }
-});
-
-app.get('/api/products/:id', authenticateToken, async (req, res) => {
-  try {
-    const product = await db.collection('products').findOne({ _id: new ObjectId(req.params.id) });
-    if (!product) return res.status(404).json({ message: 'Product not found' });
-    res.json(product);
-  } catch (err) {
-    console.error('Error fetching product:', err);
-    res.status(500).json({ message: 'Server error fetching product', error: err.message });
+    console.error('Error creating product at', new Date().toISOString(), ':', err);
+    res.status(500).json({ message: 'Server error creating product', error: err.message, timestamp: new Date().toISOString() });
   }
 });
 
@@ -394,15 +277,10 @@ app.put('/api/products/:id', authenticateToken, async (req, res) => {
   try {
     const product = { ...req.body };
     delete product._id;
-    if (product.name && !product.name) return res.status(400).json({ message: 'Name is required' });
-    if (product.category && !product.category) return res.status(400).json({ message: 'Category is required' });
-    if (product.price !== undefined && product.price < 0) return res.status(400).json({ message: 'Price must be a positive number' });
-    if (product.stock !== undefined && product.stock < 0) return res.status(400).json({ message: 'Stock must be a positive number' });
-
     const existingProduct = await db.collection('products').findOne({ _id: new ObjectId(req.params.id) });
-    if (!existingProduct) return res.status(404).json({ message: 'Product not found' });
+    if (!existingProduct) return res.status(404).json({ message: 'Product not found', timestamp: new Date().toISOString() });
 
-    const result = await db.collection('products').updateOne({ _id: new ObjectId(req.params.id) }, { $set: product });
+    await db.collection('products').updateOne({ _id: new ObjectId(req.params.id) }, { $set: product });
 
     if (existingProduct.shopifyProductId) {
       await updateProductOnShopify(existingProduct.shopifyProductId, { ...product, _id: req.params.id });
@@ -411,135 +289,44 @@ app.put('/api/products/:id', authenticateToken, async (req, res) => {
       await db.collection('products').updateOne({ _id: new ObjectId(req.params.id) }, { $set: { shopifyProductId: shopifyProductId.toString() } });
     }
 
-    res.json({ message: 'Product updated successfully', result });
+    console.log('Product updated at', new Date().toISOString(), ':', { ...existingProduct, ...product });
+    res.json({ message: 'Product updated successfully', timestamp: new Date().toISOString() });
   } catch (err) {
-    console.error('Error updating product:', err);
-    res.status(500).json({ message: 'Error updating product', error: err.message });
+    console.error('Error updating product at', new Date().toISOString(), ':', err);
+    res.status(500).json({ message: 'Error updating product', error: err.message, timestamp: new Date().toISOString() });
   }
 });
 
 app.delete('/api/products/:id', authenticateToken, async (req, res) => {
   try {
     const existingProduct = await db.collection('products').findOne({ _id: new ObjectId(req.params.id) });
-    if (!existingProduct) return res.status(404).json({ message: 'Product not found' });
+    if (!existingProduct) return res.status(404).json({ message: 'Product not found', timestamp: new Date().toISOString() });
 
     if (existingProduct.shopifyProductId) await deleteProductFromShopify(existingProduct.shopifyProductId);
     await db.collection('products').deleteOne({ _id: new ObjectId(req.params.id) });
-    res.json({ message: 'Product deleted successfully' });
+    console.log('Product deleted at', new Date().toISOString(), ':', req.params.id);
+    res.json({ message: 'Product deleted successfully', timestamp: new Date().toISOString() });
   } catch (err) {
-    console.error('Error deleting product:', err);
-    res.status(500).json({ message: 'Server error deleting product', error: err.message });
+    console.error('Error deleting product at', new Date().toISOString(), ':', err);
+    res.status(500).json({ message: 'Server error deleting product', error: err.message, timestamp: new Date().toISOString() });
   }
 });
 
-// Orders Routes
 app.get('/api/orders', authenticateToken, async (req, res) => {
   try {
-    await syncOrdersFromShopify();
     const orders = await db.collection('orders').find().toArray();
     res.json(orders);
   } catch (err) {
-    console.error('Error fetching orders:', err);
-    res.status(500).json({ message: 'Server error fetching orders', error: err.message });
+    res.status(500).json({ message: 'Server error fetching orders', error: err.message, timestamp: new Date().toISOString() });
   }
 });
 
-// Route: Get single order details
-app.get('/api/orders/:id', authenticateToken, async (req, res) => {
-  try {
-    const order = await db.collection('orders').findOne({ _id: new ObjectId(req.params.id) });
-    if (!order) return res.status(404).json({ message: 'Order not found' });
-    res.json(order);
-  } catch (err) {
-    console.error('Error fetching order:', err);
-    res.status(500).json({ message: 'Server error fetching order', error: err.message });
-  }
-});
-
-// Route: Send confirmation email
-app.post('/api/orders/:id/send-confirmation', authenticateToken, async (req, res) => {
-  try {
-    const order = await db.collection('orders').findOne({ _id: new ObjectId(req.params.id) });
-    if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (!order.customer || !order.customer.email) return res.status(400).json({ message: 'Customer email not found' });
-
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: order.customer.email,
-      subject: `Order Confirmation - #${order.orderNumber}`,
-      html: `
-        <h1>Order Confirmation</h1>
-        <p>Dear ${order.customer.firstName} ${order.customer.lastName},</p>
-        <p>Thank you for your order! Here are the details:</p>
-        <ul>
-          <li>Order Number: #${order.orderNumber}</li>
-          <li>Date: ${new Date(order.createdAt).toLocaleDateString()}</li>
-          <li>Total: ${order.totalPrice.toFixed(2)} ${order.currency}</li>
-          <li>Payment Status: ${order.status}</li>
-          <li>Fulfillment Status: ${order.fulfillmentStatus}</li>
-        </ul>
-        <h2>Items:</h2>
-        <ul>
-          ${order.lineItems.map(item => `
-            <li>${item.title} - Quantity: ${item.quantity} - Price: ${item.price.toFixed(2)} ${order.currency}</li>
-          `).join('')}
-        </ul>
-        <p>We will notify you once your order has shipped.</p>
-        <p>Best regards,<br>Your Store Team</p>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-    res.json({ message: 'Confirmation email sent successfully' });
-  } catch (err) {
-    console.error('Error sending confirmation email:', err);
-    res.status(500).json({ message: 'Server error sending confirmation email', error: err.message });
-  }
-});
-
-// New Route: Send confirmation SMS
-app.post('/api/orders/:id/send-sms', authenticateToken, async (req, res) => {
-  try {
-    const order = await db.collection('orders').findOne({ _id: new ObjectId(req.params.id) });
-    if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (!order.customer || !order.customer.phone) return res.status(400).json({ message: 'Customer phone number not found' });
-
-    const message = `
-      Order Confirmation #${order.orderNumber}
-      Dear ${order.customer.firstName} ${order.customer.lastName},
-      Thank you for your order!
-      - Order Number: #${order.orderNumber}
-      - Date: ${new Date(order.createdAt).toLocaleDateString()}
-      - Total: ${order.totalPrice.toFixed(2)} ${order.currency}
-      - Payment Status: ${order.status}
-      - Fulfillment Status: ${order.fulfillmentStatus}
-      Items:
-      ${order.lineItems.map(item => `- ${item.title} (Qty: ${item.quantity}, Price: ${item.price.toFixed(2)} ${order.currency})`).join('\n')}
-      We will notify you once your order has shipped.
-      Best regards,
-      Your Store Team
-    `;
-
-    await twilioClient.messages.create({
-      body: message,
-      from: twilioPhoneNumber,
-      to: order.customer.phone,
-    });
-
-    res.json({ message: 'Confirmation SMS sent successfully' });
-  } catch (err) {
-    console.error('Error sending confirmation SMS:', err);
-    res.status(500).json({ message: 'Server error sending confirmation SMS', error: err.message });
-  }
-});
-
-// Image Upload Route
 app.post('/api/upload', authenticateToken, (req, res) => {
   upload(req, res, async (err) => {
-    if (err) return res.status(400).json({ message: err.message });
+    if (err) return res.status(400).json({ message: err.message, timestamp: new Date().toISOString() });
 
     try {
-      if (!req.files || req.files.length === 0) return res.status(400).json({ message: 'No files uploaded' });
+      if (!req.files || req.files.length === 0) return res.status(400).json({ message: 'No files uploaded', timestamp: new Date().toISOString() });
 
       const uploadPromises = req.files.map(async (file) => {
         const result = await cloudinary.uploader.upload(file.path, { folder: 'products', resource_type: 'image' });
@@ -548,20 +335,69 @@ app.post('/api/upload', authenticateToken, (req, res) => {
       });
 
       const imageUrls = await Promise.all(uploadPromises);
-      res.json({ imageUrls });
+      console.log('Images uploaded at', new Date().toISOString(), ':', imageUrls);
+      res.json({ imageUrls, timestamp: new Date().toISOString() });
     } catch (err) {
-      console.error('Error uploading images to Cloudinary:', err);
-      res.status(500).json({ message: 'Server error uploading images', error: err.message });
+      console.error('Error uploading images at', new Date().toISOString(), ':', err);
+      res.status(500).json({ message: 'Server error uploading images', error: err.message, timestamp: new Date().toISOString() });
     }
   });
 });
 
-// Serve React frontend
-app.get(/^\/(?!api).*/, (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-  } else {
-    res.json({ message: 'API server running in development mode' });
+app.post('/api/ollama', authenticateToken, async (req, res) => {
+  try {
+    const { prompt, type } = req.body;
+    if (!prompt) return res.status(400).json({ message: 'Prompt is required', timestamp: new Date().toISOString() });
+    if (!type || !['text', 'image-description'].includes(type)) {
+      return res.status(400).json({ message: "Type must be 'text' or 'image-description'", timestamp: new Date().toISOString() });
+    }
+
+    let ollamaPrompt;
+    if (type === 'text') {
+      ollamaPrompt = `Generate a product description for: ${prompt}`;
+    } else if (type === 'image-description') {
+      ollamaPrompt = `
+        Generate a compelling, SEO-friendly product description for a Shopify store. Use the following details to create a description that is engaging, concise, and optimized for conversions. Ensure the tone is [insert tone, e.g., professional, friendly, luxurious, casual], and the description is between [insert word count, e.g., 100-150 words]. Include the following elements:
+Product Name: ${prompt}
+Category: [Insert category, e.g., clothing, electronics, home decor]
+Key Features: [List 3-5 key features, e.g., material, size, functionality]
+Benefits: [Describe 2-3 customer benefits, e.g., comfort, durability, convenience]
+Target Audience: [Describe target audience, e.g., fitness enthusiasts, busy professionals]
+Keywords for SEO: [List 3-5 keywords to incorporate naturally, e.g., organic cotton, wireless charger]
+Call to Action: Include a strong call to action, e.g., "Shop now," "Add to cart today."
+Structure the description as follows:
+Opening Hook: Start with an engaging sentence to grab attention.
+Features and Benefits: Highlight key features and how they benefit the customer.
+Closing with CTA: End with a persuasive call to action.
+Example (do not use this directly, generate a new description based on the provided details): Discover the ultimate comfort with our Eco-Friendly Bamboo T-Shirt! Crafted from 100% organic bamboo fabric, this lightweight, breathable shirt offers all-day comfort and durability. Perfect for eco-conscious fashion lovers, it’s hypoallergenic and moisture-wicking, keeping you fresh no matter the occasion. Available in multiple sizes, this versatile piece is a must-have for any wardrobe. Shop now and elevate your style sustainably!
+Now, generate a product description based on the provided details.
+      `;
+    }
+
+    console.log('Calling Ollama with prompt:', ollamaPrompt, 'at', new Date().toISOString());
+ /*   const response = await axios.post('http://localhost:11434/api/generate', {
+      model: 'gemma3:1b',
+      prompt: ollamaPrompt,
+      stream: false,
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 0, // Ajout d'un timeout de 10 secondes
+    });
+
+    if (!response.data || !response.data.response) {
+      throw new Error('Invalid response from Ollama');
+    }
+*/
+    console.log('Ollama response at', new Date().toISOString(), ':', response.data.response);
+    res.json({ result: 'ollama response', type, timestamp: new Date().toISOString() });
+  } catch (err) {
+    console.error('Error with Ollama API at', new Date().toISOString(), ':', err.response ? err.response.data : err.message);
+    res.status(500).json({
+      message: 'Error with Ollama API',
+      error: err.message,
+      timestamp: new Date().toISOString(),
+      result: 'Unable to generate content due to server error. Please try again later.',
+    });
   }
 });
 
@@ -569,7 +405,7 @@ app.get(/^\/(?!api).*/, (req, res) => {
 async function startServer() {
   await connectToMongo();
   app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server running on port ${PORT} at`, new Date().toISOString());
   });
 }
 
